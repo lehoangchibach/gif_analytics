@@ -14,7 +14,7 @@ if __name__ == "__main__":
     access_token = get_access_token()
     
     headers = {"Authorization": f"bearer {access_token}", "User-Agent": USER_AGENT}
-    params = {"t": "year", "limit": 100, "after":"t3_194chri"}
+    params = {"t": "year", "limit": 100}
     urls = []
     afters = []
     
@@ -27,13 +27,17 @@ if __name__ == "__main__":
             )
             response.raise_for_status()
             data = response.json()
-            
-            params["after"] = data["data"]["after"]
-            afters.append(params["after"] + "\n")
-            
+
             children = data["data"]["children"]
             for i in range(len(children)):
                 urls.append(children[i]["data"]["url"])
+            
+            params["after"] = data["data"]["after"]
+            if params["after"] is None:
+                afters.append("EOF")
+                break
+            afters.append(params["after"] + "\n")
+            
 
     except Exception as e:
         print(str(data).encode("utf-8"), e)
