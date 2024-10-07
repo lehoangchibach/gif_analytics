@@ -2,3 +2,6 @@
 **/.virtual_documents/
 .env
 data
+outputs
+templates/*pages
+templates/metadata.json
