@@ -1,9 +1,10 @@
-import json
+import argparse
 import gc
+import json
 import os
 import pickle as pk
 from typing import List
-import argparse
+
 import cv2
 import numpy as np
 import torch
@@ -21,6 +22,7 @@ from torchsummary import summary
 NUM_FRAMES = 5
 IMAGE_SIZE = (224, 224)
 BATCH_SIZE = 6
+
 
 def input_processor(video_path: str) -> np.ndarray:
     frames = []
@@ -108,44 +110,34 @@ class VideoCNN(nn.Module):
         self.conv3d = nn.Sequential(
             nn.Conv3d(3, 64, kernel_size=3, padding=1),
             nn.ReLU(),
-
-            nn.Conv3d(64, 64, kernel_size=3, padding=1),
-            nn.ReLU(),
-
+            # nn.Conv3d(64, 64, kernel_size=3, padding=1),
+            # nn.ReLU(),
             nn.MaxPool3d(kernel_size=2),
-
             nn.Conv3d(64, 128, kernel_size=3, padding=1),
             nn.ReLU(),
-            nn.Conv3d(128, 128, kernel_size=3, padding=1),
-            nn.ReLU(),
-
+            # nn.Conv3d(128, 128, kernel_size=3, padding=1),
+            # nn.ReLU(),
             nn.MaxPool3d(kernel_size=2),
-
             nn.Conv3d(128, 256, kernel_size=3, padding=1),
             nn.ReLU(),
-            nn.Conv3d(256, 256, kernel_size=3, padding=1),
-            nn.ReLU(),
-            nn.Conv3d(256, 256, kernel_size=3, padding=1),
-            nn.ReLU(),
-
+            # nn.Conv3d(256, 256, kernel_size=3, padding=1),
+            # nn.ReLU(),
+            # nn.Conv3d(256, 256, kernel_size=3, padding=1),
+            # nn.ReLU(),
             nn.MaxPool3d(kernel_size=2, padding=1),
-
             nn.Conv3d(256, 512, kernel_size=3, padding=1),
             nn.ReLU(),
+            # nn.Conv3d(512, 512, kernel_size=3, padding=1),
+            # nn.ReLU(),
             nn.Conv3d(512, 512, kernel_size=3, padding=1),
             nn.ReLU(),
-            nn.Conv3d(512, 512, kernel_size=3, padding=1),
-            nn.ReLU(),
-
             nn.MaxPool3d(kernel_size=2, padding=1),
-
             nn.Conv3d(512, 512, kernel_size=3, padding=1),
             nn.ReLU(),
-            nn.Conv3d(512, 512, kernel_size=3, padding=1),
-            nn.ReLU(),
-            nn.Conv3d(512, 512, kernel_size=3, padding=1),
-            nn.ReLU(),
-            
+            # nn.Conv3d(512, 512, kernel_size=3, padding=1),
+            # nn.ReLU(),
+            # nn.Conv3d(512, 512, kernel_size=3, padding=1),
+            # nn.ReLU(),
             nn.MaxPool3d(kernel_size=2, padding=1),
         )
 
@@ -218,10 +210,10 @@ def evaluate_model_ddp(model, dataloader, criterion, device, phase="val"):
         for videos, labels in dataloader:
             videos = videos.cuda(device, non_blocking=True)
             labels = labels.cuda(device, non_blocking=True)
-            
+
             outputs = model(videos)
             loss = criterion(outputs, labels)
-            
+
             total_loss += loss.item()
             _, predicted = outputs.max(1)
             total += labels.size(0)
@@ -238,7 +230,7 @@ def evaluate_model_ddp(model, dataloader, criterion, device, phase="val"):
     dist.all_reduce(total_loss, op=dist.ReduceOp.SUM)
     dist.all_reduce(correct, op=dist.ReduceOp.SUM)
     dist.all_reduce(total, op=dist.ReduceOp.SUM)
-    
+
     # Calculate metrics
     avg_loss = (total_loss / len(dataloader)).item()
     accuracy = (100.0 * correct / total).item()
@@ -247,10 +239,10 @@ def evaluate_model_ddp(model, dataloader, criterion, device, phase="val"):
     if phase == "test":
         all_predictions = [[] for _ in range(dist.get_world_size())]
         all_labels = [[] for _ in range(dist.get_world_size())]
-        
+
         dist.all_gather_object(all_predictions, predictions)
         dist.all_gather_object(all_labels, true_labels)
-        
+
         # Only process and return metrics on main process
         predictions = [p for sublist in all_predictions for p in sublist]
         true_labels = [l for sublist in all_labels for l in sublist]
@@ -309,11 +301,10 @@ def train_model_ddp(
     model = VideoCNN(num_classes=num_classes).to(rank)
     model = DDP(model, device_ids=[rank])
 
-
     # SUMMARY
     if is_summary:
-        if rank == 0:    
-            summary(model, (NUM_FRAMES, *IMAGE_SIZE, 3 ), batch_size=-1, device='cuda')
+        if rank == 0:
+            summary(model, (NUM_FRAMES, *IMAGE_SIZE, 3), batch_size=-1, device="cuda")
         exit()
 
     # Criterion & Optimizer
@@ -349,7 +340,6 @@ def train_model_ddp(
                     f"Acc: {100.0 * correct / total:.2f}%"
                 )
 
-
         val_loss, val_accuracy = evaluate_model_ddp(
             model, val_loader, criterion, rank, "val"
         )
@@ -369,7 +359,9 @@ def train_model_ddp(
             # Save best model
             if val_accuracy > best_val_accuracy:
                 best_val_accuracy = val_accuracy
-                torch.save(model, f"./models/best_model_acc_{int(best_val_accuracy)}.pth")
+                torch.save(
+                    model, f"./models/best_model_acc_{int(best_val_accuracy)}.pth"
+                )
 
     test_loss, test_accuracy, test_report, conf_matrix = evaluate_model_ddp(
         model, test_loader, criterion, rank, "test"
@@ -392,9 +384,9 @@ def train_model_ddp(
 if __name__ == "__main__":
 
     parser = argparse.ArgumentParser(description="Training categorized...")
-    parser.add_argument('-dataset', type=str, help="Dataset name")
-    parser.add_argument('-epochs', type=int, help="# Epochs")
-    parser.add_argument('-summary', type=bool, help="Model summary")
+    parser.add_argument("-dataset", type=str, help="Dataset name")
+    parser.add_argument("-epochs", type=int, help="# Epochs")
+    parser.add_argument("-summary", type=bool, help="Model summary")
 
     args = parser.parse_args()
 
@@ -404,14 +396,14 @@ if __name__ == "__main__":
         files = os.listdir(data_path)
         for i, file in enumerate(files):
             print(f"{i}: {file}")
-        
+
         data_idx = int(input("Select file: "))
         dataset = f"{data_path}{files[data_idx]}"
 
     epochs = args.epochs
     if not epochs:
         epochs = int(input("Epochs: "))
-    
+
     gc.collect()
     torch.cuda.empty_cache()
 
@@ -442,7 +434,15 @@ if __name__ == "__main__":
     mp.set_start_method("spawn", force=True)
     mp.spawn(
         train_model_ddp,
-        args=(world_size, train_dataset, val_dataset, test_dataset, num_classes, epochs, args.summary),
+        args=(
+            world_size,
+            train_dataset,
+            val_dataset,
+            test_dataset,
+            num_classes,
+            epochs,
+            args.summary,
+        ),
         nprocs=world_size,
         join=True,
     )
