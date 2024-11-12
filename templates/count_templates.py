@@ -1,12 +1,16 @@
 import json
 
-with open("./metadata.json", "r") as f:
+with open("./metadata_w_examples.json", "r") as f:
     metadata = json.load(f)
 
 
 print("metadata:", len(metadata))
 
-s = set()
+href = set()
+template_id = set()
 for data in metadata:
-    s.add(data["href"])
-print("unique:", len(s))
+    href.add(data["href"])
+    template_id.add(data["html_file"])
+print("unique href:", len(href))
+print("unique html_file:", len(template_id))
+print("data[0]: ", metadata[0])

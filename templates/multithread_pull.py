@@ -1,3 +1,4 @@
+import json
 import multiprocessing
 import os
 import pickle as pk
@@ -7,38 +8,34 @@ import sys
 import requests
 
 
-def divide_urls_keys(n, objs) -> list[list[tuple[str, str]]]:
+def divide_url_filename_pairs(n, metadata) -> list[list[tuple[str, str]]]:
     """
     Return a list of n sublists.
     Each sublists is a list of 2 elems tuple contains (url, filename)
     """
-    keys = list(objs.keys())
-    random.shuffle(keys)
-    chunk_size = len(keys) // n
+    url_filename_pairs = [
+        (data["src"], data["html_file"] + "." + data["Format"]) for data in metadata
+    ]
+    random.shuffle(url_filename_pairs)
+    chunk_size = len(url_filename_pairs) // n
     chunk_end = n * chunk_size
-    remainder = len(keys) % n
-    divided_keys = [keys[i : i + chunk_size] for i in range(0, chunk_end, chunk_size)]
+    remainder = len(url_filename_pairs) % n
+    divided_url_filename_pairs = [
+        url_filename_pairs[i : i + chunk_size] for i in range(0, chunk_end, chunk_size)
+    ]
     for i in range(remainder):
-        divided_keys[i].append(keys[chunk_end + i])
+        divided_url_filename_pairs[i].append(url_filename_pairs[chunk_end + i])
 
-    res = []
-    for keys in divided_keys:
-        url_k_pairs = []
-        for k in keys:
-            url_k_pairs.append((objs[k]["url"], k))
-        res.append(url_k_pairs)
-
-    return res
+    return divided_url_filename_pairs
 
 
 def pull_gif(url, filename) -> bool:
     try:
-        response = requests.get(url)
+        response = requests.get(f"https://{url}")
         if response.status_code != 200 or not response.content:
             return False
 
-        extension = url.split(".")[-1]
-        with open(f"gifs/{filename}.{extension}", "wb") as f:
+        with open(f"template_data/{filename}", "wb") as f:
             f.write(response.content)
 
         return True
@@ -66,8 +63,9 @@ def pull_gifs(data: list[tuple[str, str]]) -> list[str]:
 
 
 def get_existed():
-    files = os.listdir("/home/lehoangchibach/Documents/Code/gif_analytics/gifs")
-    files.extend(os.listdir("/d/gifs"))
+    files = os.listdir(
+        "/home/lehoangchibach/Documents/Code/gif_analytics/templates/template_data"
+    )
 
     gen = (file.split(".")[0] for file in files)
     existed = set(gen)
@@ -78,15 +76,14 @@ def get_existed():
 
 if __name__ == "__main__":
     get_existed()
-
-    with open("outputs/objs.pickle", "rb") as f:
-        objs = pk.load(f)
+    with open("./metadata.json", "r") as f:
+        data = json.load(f)
 
     NUM_PROCESS = 15
 
-    divided_url_k_pairs = divide_urls_keys(NUM_PROCESS, objs)
+    divided_url_filename_pairs = divide_url_filename_pairs(NUM_PROCESS, data)
 
     with multiprocessing.Pool(processes=NUM_PROCESS) as pool:
-        results = pool.map(pull_gifs, divided_url_k_pairs)
+        results = pool.map(pull_gifs, divided_url_filename_pairs)
         merged_result = [item for sublist in results for item in sublist]
         print(merged_result)
