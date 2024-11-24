@@ -17,6 +17,7 @@ from torch.nn.parallel import DistributedDataParallel as DDP
 from torch.utils.data import DataLoader, Dataset, Subset
 from torch.utils.data.distributed import DistributedSampler
 from torchsummary import summary
+from vidaug import augmentors as va
 
 # CONSTANTS
 NUM_FRAMES = 5
@@ -58,7 +59,18 @@ def input_processor(video_path: str) -> np.ndarray:
     while len(frames) < 5:
         frames.append(frames[-1])
 
-    video_data = np.stack(frames) / 255.0
+    seq = va.Sequential(
+        [
+            va.Pepper(),
+            va.RandomShear(x=0.05, y=0.05),
+            va.RandomTranslate(x=25, y=25),
+            va.RandomRotate(20),
+            va.Sometimes(0.5, va.HorizontalFlip()),
+        ]
+    )
+
+    frames = seq(frames)
+    video_data = np.stack(frames)
     return video_data.astype(np.float32)
 
 
@@ -68,6 +80,7 @@ class VideoDataset(Dataset):
         video_paths: List[str],
         template_ids: List[int],
         custom_processor: callable,
+        repetitions: int = 1,
     ):
         self.video_paths = video_paths
         # Convert template IDs to tensor immediately
@@ -83,14 +96,20 @@ class VideoDataset(Dataset):
             int(tid): idx for idx, tid in enumerate(self.unique_templates)
         }
 
+        self.repetitions = repetitions
+
     def __len__(self):
-        return len(self.video_paths)
+        return len(self.video_paths) * self.repetitions
 
     def __getitem__(self, idx):
+        # Get original indexes
+        idx = idx // self.repetitions
+
         video_path = self.video_paths[idx]
         template_id = int(self.template_ids[idx])
 
         video = self.custom_processor(video_path)
+
         video_tensor = torch.from_numpy(video)
 
         # Convert template ID to class index
@@ -382,7 +401,6 @@ def train_model_ddp(
 
 
 if __name__ == "__main__":
-
     parser = argparse.ArgumentParser(description="Training categorized...")
     parser.add_argument("-dataset", type=str, help="Dataset name")
     parser.add_argument("-epochs", type=int, help="# Epochs")
@@ -400,9 +418,7 @@ if __name__ == "__main__":
         data_idx = int(input("Select file: "))
         dataset = f"{data_path}{files[data_idx]}"
 
-    epochs = args.epochs
-    if not epochs:
-        epochs = int(input("Epochs: "))
+    epochs = args.epochs or int(input("Epochs: "))
 
     gc.collect()
     torch.cuda.empty_cache()
