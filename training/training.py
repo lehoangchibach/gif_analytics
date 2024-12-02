@@ -259,10 +259,16 @@ if __name__ == "__main__":
         train_val_indices, test_size=0.25, random_state=42
     )
 
+    # Get test data
+    test_X_data = [X_data[i] for i in test_indices]
+    test_Y_data = [Y_data[i] for i in test_indices]
+
+    # Initialize train, val, test dataset
     train_dataset = Subset(dataset, train_indices)
     val_dataset = Subset(dataset, val_indices)
-    test_dataset = Subset(dataset, test_indices)
-    test_dataset.custom_processor = test_video_processor
+    test_dataset = VideoDataset(
+        test_X_data, test_Y_data, custom_processor=test_video_processor
+    )
 
     print(f"Dataset splits:")
     print(f"\tTraining samples: {len(train_dataset)}")
