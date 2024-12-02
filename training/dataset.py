@@ -1,10 +1,19 @@
 from typing import List
 
 import torch
+from numpy import ndarray
 from torch.utils.data import Dataset
 
 
 class VideoDataset(Dataset):
+    video_paths: list[str]
+    template_ids: ndarray[int]
+    custom_processor: callable
+    unique_templates: ndarray[int]
+    num_classes: int
+    template_to_idx: dict
+    repetitions: int
+
     def __init__(
         self,
         video_paths: List[str],

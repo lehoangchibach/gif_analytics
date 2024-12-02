@@ -6,39 +6,22 @@ import pickle as pk
 import sys
 
 import torch
-import torch.distributed as dist
 import torch.multiprocessing as mp
 import torch.nn as nn
-from sklearn.metrics import classification_report, confusion_matrix
 from sklearn.model_selection import train_test_split
 from torch.nn.parallel import DistributedDataParallel as DDP
 from torch.utils.data import DataLoader, Subset
 
 from constants import *
 from dataset import VideoDataset
-from helpers import load_checkpoint, video_processor
+from helpers import (
+    cleanup_ddp,
+    evaluate_model_ddp,
+    load_checkpoint,
+    setup_ddp,
+    test_video_processor,
+)
 from model import VideoCNN
-
-
-def setup_ddp(rank, world_size):
-    """
-    Setup for distributed evaluation
-    """
-    os.environ["MASTER_ADDR"] = "localhost"
-    os.environ["MASTER_PORT"] = "12355"
-
-    # Initialize the process group
-    dist.init_process_group("nccl", rank=rank, world_size=world_size)
-
-    # Set device for this process
-    torch.cuda.set_device(rank)
-
-
-def cleanup_ddp():
-    """
-    Clean up distributed evaluation
-    """
-    dist.destroy_process_group()
 
 
 def evaluate_model(
@@ -108,61 +91,6 @@ def evaluate_model(
     cleanup_ddp()
 
 
-def evaluate_model_ddp(model, dataloader, criterion, device, phase="test"):
-    """
-    Distributed evaluation of model
-    """
-    model.eval()
-    total_loss = torch.zeros(1).to(device)
-    correct = torch.zeros(1).to(device)
-    total = torch.zeros(1).to(device)
-    predictions = []
-    true_labels = []
-
-    with torch.no_grad():
-        for videos, labels in dataloader:
-            videos = videos.cuda(device, non_blocking=True)
-            labels = labels.cuda(device, non_blocking=True)
-
-            outputs = model(videos)
-            loss = criterion(outputs, labels)
-
-            total_loss += loss.item()
-            _, predicted = outputs.max(1)
-            total += labels.size(0)
-            correct += predicted.eq(labels).sum()
-
-            predictions.extend(predicted.cpu().numpy())
-            true_labels.extend(labels.cpu().numpy())
-
-            del videos, labels, outputs
-            torch.cuda.empty_cache()
-
-    # Synchronize metrics across all GPUs
-    dist.all_reduce(total_loss, op=dist.ReduceOp.SUM)
-    dist.all_reduce(correct, op=dist.ReduceOp.SUM)
-    dist.all_reduce(total, op=dist.ReduceOp.SUM)
-
-    # Calculate metrics
-    avg_loss = (total_loss / len(dataloader)).item()
-    accuracy = (100.0 * correct / total).item()
-
-    # Gather all predictions and labels
-    all_predictions = [[] for _ in range(dist.get_world_size())]
-    all_labels = [[] for _ in range(dist.get_world_size())]
-
-    dist.all_gather_object(all_predictions, predictions)
-    dist.all_gather_object(all_labels, true_labels)
-
-    # Process metrics on main process
-    predictions = [p for sublist in all_predictions for p in sublist]
-    true_labels = [l for sublist in all_labels for l in sublist]
-    report = classification_report(true_labels, predictions, zero_division=0)
-    conf_matrix = confusion_matrix(true_labels, predictions)
-
-    return avg_loss, accuracy, report, conf_matrix
-
-
 if __name__ == "__main__":
     parser = argparse.ArgumentParser(description="Model Evaluation Script")
     parser.add_argument("-dataset", type=str, help="Dataset file path")
@@ -197,7 +125,7 @@ if __name__ == "__main__":
         X_data, Y_data = pk.load(f)
 
     dataset_name = dataset.split("/")[-1].split(".")[0]
-    video_dataset = VideoDataset(X_data, Y_data, custom_processor=video_processor)
+    video_dataset = VideoDataset(X_data, Y_data, custom_processor=test_video_processor)
     num_classes = video_dataset.num_classes
     print(f"Number of classes: {num_classes}")
 
