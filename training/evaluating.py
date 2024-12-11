@@ -11,6 +11,7 @@ import torch.nn as nn
 from sklearn.model_selection import train_test_split
 from torch.nn.parallel import DistributedDataParallel as DDP
 from torch.utils.data import DataLoader, Subset
+from torch.utils.data.distributed import DistributedSampler
 
 from constants import *
 from dataset import VideoDataset
@@ -38,12 +39,17 @@ def evaluate_model(
     # Setup DDP
     setup_ddp(rank, world_size)
 
+    test_sampler = DistributedSampler(
+        test_dataset, num_replicas=world_size, rank=rank
+    )
+
     # Create test dataloader
     test_loader = DataLoader(
         test_dataset,
         batch_size=BATCH_SIZE,
         num_workers=2,
         persistent_workers=True,
+        sampler=test_sampler,
     )
 
     # Create model and move it to GPU

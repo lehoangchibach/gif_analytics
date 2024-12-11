@@ -157,7 +157,7 @@ def test_video_processor(video_path: str) -> np.ndarray:
     return video_data.astype(np.float32)
 
 
-def save_checkpoint(model, optimizer, epoch, val_accuracy, best_val_accuracy, filename):
+def save_checkpoint(model, optimizer, epoch, val_accuracy, best_val_accuracy, filename, num_classes, unique_templates):
     """
     Save model checkpoint with all necessary information to resume training
     """
@@ -173,6 +173,8 @@ def save_checkpoint(model, optimizer, epoch, val_accuracy, best_val_accuracy, fi
         "optimizer_state_dict": optimizer.state_dict(),
         "val_accuracy": val_accuracy,
         "best_val_accuracy": best_val_accuracy,
+        "num_classes": num_classes,
+        "unique_templates": unique_templates,
     }
     torch.save(checkpoint, filename)
 

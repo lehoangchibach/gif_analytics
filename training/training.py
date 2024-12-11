@@ -34,7 +34,7 @@ def train_model_ddp(
     dataset_name: str,
     train_dataset,
     val_dataset,
-    test_dataset,
+    test_dataset: VideoDataset,
     num_classes: int,
     num_epochs=1,
     is_summary=False,
@@ -50,8 +50,16 @@ def train_model_ddp(
     train_sampler = DistributedSampler(
         train_dataset, num_replicas=world_size, rank=rank
     )
-    num_workers = 2
 
+    val_sampler = DistributedSampler(
+        val_dataset, num_replicas=world_size, rank=rank
+    )
+
+    test_sampler = DistributedSampler(
+        test_dataset, num_replicas=world_size, rank=rank
+    )
+
+    num_workers = 2
     train_loader = DataLoader(
         train_dataset,
         batch_size=BATCH_SIZE,
@@ -65,6 +73,7 @@ def train_model_ddp(
         val_dataset,
         batch_size=BATCH_SIZE,
         num_workers=num_workers,
+        sampler=val_sampler,
         persistent_workers=True,
     )
 
@@ -72,6 +81,7 @@ def train_model_ddp(
         test_dataset,
         batch_size=BATCH_SIZE,
         num_workers=num_workers,
+        sampler=test_sampler,
         persistent_workers=True,
     )
 
@@ -156,6 +166,8 @@ def train_model_ddp(
                     val_accuracy,
                     best_val_accuracy,
                     best_model_file,
+                    test_dataset.num_classes,
+                    test_dataset.unique_templates,
                 )
                 print(f"Saved best model to {best_model_file}")
 
@@ -170,6 +182,8 @@ def train_model_ddp(
                     val_accuracy,
                     best_val_accuracy,
                     checkpoint_file,
+                    test_dataset.num_classes,
+                    test_dataset.unique_templates,
                 )
                 print(f"Saved checkpoint to {checkpoint_file}")
 
@@ -199,6 +213,8 @@ def train_model_ddp(
             val_accuracy,
             best_val_accuracy,
             final_checkpoint,
+            test_dataset.num_classes,
+            test_dataset.unique_templates,
         )
         print(f"Saved final model to {final_checkpoint}")
 
