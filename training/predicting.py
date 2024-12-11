@@ -1,9 +1,12 @@
 import argparse
-import torch
 import pickle as pk
-from model import VideoCNN
+
+import torch
+
 from dataset import VideoDataset
 from helpers import test_video_processor
+from model import VideoCNN
+
 
 def predict_example(model_path, dataset_path: str, example_path: str):
     """
@@ -21,8 +24,8 @@ def predict_example(model_path, dataset_path: str, example_path: str):
     model = VideoCNN(num_classes=num_classes)
 
     # Load checkpoint
-    checkpoint = torch.load(model_path, map_location='cpu')
-    model.load_state_dict(checkpoint['model_state_dict'])
+    checkpoint = torch.load(model_path, map_location="cpu")
+    model.load_state_dict(checkpoint["model_state_dict"])
     model.eval()
 
     # Add batch dimension
@@ -42,17 +45,17 @@ def predict_example(model_path, dataset_path: str, example_path: str):
 
     return template_id
 
+
 def main():
     parser = argparse.ArgumentParser(description="Model Prediction Script")
     parser.add_argument("model", type=str, help="Path to model checkpoint")
     parser.add_argument("dataset", type=str, help="Path to original dataset")
     parser.add_argument("example", type=str, help="Path to predicting video")
-    
+
     args = parser.parse_args()
-    
+
     predict_example(args.model, args.dataset, args.example)
+
 
 if __name__ == "__main__":
     main()
-
-

@@ -4,6 +4,7 @@ import json
 import os
 import pickle as pk
 import sys
+import time
 
 import torch
 import torch.multiprocessing as mp
@@ -51,13 +52,9 @@ def train_model_ddp(
         train_dataset, num_replicas=world_size, rank=rank
     )
 
-    val_sampler = DistributedSampler(
-        val_dataset, num_replicas=world_size, rank=rank
-    )
+    val_sampler = DistributedSampler(val_dataset, num_replicas=world_size, rank=rank)
 
-    test_sampler = DistributedSampler(
-        test_dataset, num_replicas=world_size, rank=rank
-    )
+    test_sampler = DistributedSampler(test_dataset, num_replicas=world_size, rank=rank)
 
     num_workers = 2
     train_loader = DataLoader(
@@ -111,6 +108,9 @@ def train_model_ddp(
             )
 
     for epoch in range(num_epochs):
+        # Time
+        s = time.time()
+
         model.train()
         train_sampler.set_epoch(epoch)  # Important for proper shuffling
         running_loss = 0.0
@@ -187,6 +187,7 @@ def train_model_ddp(
                 )
                 print(f"Saved checkpoint to {checkpoint_file}")
 
+            print(f"Epoch {epoch} duration: {time.time()-s:.3f}")
             sys.stdout.flush()
 
     test_loss, test_accuracy, test_report, conf_matrix = evaluate_model_ddp(

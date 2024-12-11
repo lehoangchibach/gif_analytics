@@ -39,9 +39,7 @@ def evaluate_model(
     # Setup DDP
     setup_ddp(rank, world_size)
 
-    test_sampler = DistributedSampler(
-        test_dataset, num_replicas=world_size, rank=rank
-    )
+    test_sampler = DistributedSampler(test_dataset, num_replicas=world_size, rank=rank)
 
     # Create test dataloader
     test_loader = DataLoader(

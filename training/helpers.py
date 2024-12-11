@@ -107,10 +107,10 @@ def train_video_processor(video_path: str) -> np.ndarray:
     seq = va.Sequential(
         [
             va.Pepper(),
-            va.RandomShear(x=0.05, y=0.05),
-            va.RandomTranslate(x=25, y=25),
-            va.RandomRotate(20),
-            va.Sometimes(0.5, va.HorizontalFlip()),
+            # va.RandomShear(x=0.05, y=0.05),
+            va.RandomTranslate(x=10, y=10),
+            # va.RandomRotate(20),
+            # va.Sometimes(0.5, va.HorizontalFlip()),
         ]
     )
 
@@ -157,7 +157,16 @@ def test_video_processor(video_path: str) -> np.ndarray:
     return video_data.astype(np.float32)
 
 
-def save_checkpoint(model, optimizer, epoch, val_accuracy, best_val_accuracy, filename, num_classes, unique_templates):
+def save_checkpoint(
+    model,
+    optimizer,
+    epoch,
+    val_accuracy,
+    best_val_accuracy,
+    filename,
+    num_classes,
+    unique_templates,
+):
     """
     Save model checkpoint with all necessary information to resume training
     """
