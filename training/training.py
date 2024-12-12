@@ -5,6 +5,7 @@ import os
 import pickle as pk
 import sys
 import time
+from functools import partial
 
 import torch
 import torch.multiprocessing as mp
@@ -21,16 +22,19 @@ from helpers import (
     cleanup_ddp,
     evaluate_model_ddp,
     load_checkpoint,
+    print_and_log,
     save_checkpoint,
     setup_ddp,
     train_video_processor,
 )
+from model import VideoCNN
 
 
 def train_model_ddp(
     rank,
     world_size: int,
-    dataset_name: str,
+    output_dir: str,
+    log: callable,
     train_dataset,
     val_dataset,
     test_dataset: VideoDataset,
@@ -84,6 +88,7 @@ def train_model_ddp(
 
     # Create model and move it to GPU
     model = VideoCNN(num_classes=num_classes).to(rank)
+    model_name = model.name
     model = DDP(model, device_ids=[rank])
 
     # SUMMARY
@@ -98,12 +103,12 @@ def train_model_ddp(
 
     if checkpoint_path and os.path.exists(checkpoint_path):
         if rank == 0:
-            print(f"Loading checkpoint from {checkpoint_path}")
+            log(f"Loading checkpoint from {checkpoint_path}")
         start_epoch, val_accuracy, best_val_accuracy = load_checkpoint(
             rank, model, optimizer, checkpoint_path
         )
         if rank == 0:
-            print(
+            log(
                 f"Resuming from epoch {start_epoch} with validation accuracy {val_accuracy:.2f}%"
             )
 
@@ -133,7 +138,7 @@ def train_model_ddp(
             correct += predicted.eq(labels).sum().item()
 
             if batch_idx % 10 == 0 and rank == 0:
-                print(
+                log(
                     f"Epoch: {epoch}, Batch: {batch_idx}/{len(train_loader)}, "
                     f"Loss: {loss.item():.4f}, "
                     f"Acc: {100.0 * correct / total:.2f}%"
@@ -146,8 +151,8 @@ def train_model_ddp(
             train_loss = running_loss / len(train_loader)
             train_accuracy = 100.0 * correct / total
 
-            print(f"\nVALIDATION...")
-            print(
+            log(f"\nVALIDATION...")
+            log(
                 f"Epoch [{epoch+1}/{num_epochs}], "
                 f"\nTrain Loss: {train_loss:.4f}, "
                 f"Train Accuracy: {train_accuracy:.2f}%, "
@@ -158,7 +163,7 @@ def train_model_ddp(
             # Save best model
             if val_accuracy > best_val_accuracy:
                 best_val_accuracy = val_accuracy
-                best_model_file = f"./models/{dataset_name}/best_model_acc_{int(best_val_accuracy)}.pth"
+                best_model_file = f"./{output_dir}/models/{model_name}_best_model_acc_{int(best_val_accuracy)}.pth"
                 save_checkpoint(
                     model,
                     optimizer,
@@ -169,11 +174,11 @@ def train_model_ddp(
                     num_classes,
                     unique_templates,
                 )
-                print(f"Saved best model to {best_model_file}")
+                log(f"Saved best model to {best_model_file}")
 
             if (epoch + 1) % checkpoint_frequency == 0:
                 checkpoint_file = (
-                    f"./models/{dataset_name}/checkpoint_epoch_{epoch+1}.pth"
+                    f"./{output_dir}/models/{model_name}checkpoint_epoch_{epoch+1}.pth"
                 )
                 save_checkpoint(
                     model,
@@ -185,7 +190,7 @@ def train_model_ddp(
                     num_classes,
                     unique_templates,
                 )
-                print(f"Saved checkpoint to {checkpoint_file}")
+                log(f"Saved checkpoint to {checkpoint_file}")
 
                 stats = {
                     "train_losses": train_losses,
@@ -193,35 +198,33 @@ def train_model_ddp(
                     "val_losses": val_losses,
                     "val_accs": val_accs,
                 }
-                with open(
-                    f"./outputs/logs/stats_{dataset_name}_epoch_{epoch}.json", "w"
-                ) as f:
+                with open(f"./{output_dir}/{model_name}_traing_hist.json", "w") as f:
                     json.dump(stats, f)
 
             train_losses.append(train_loss)
             train_accs.append(train_accuracy)
             val_losses.append(val_loss)
             val_accs.append(val_accuracy)
-            print(f"Epoch {epoch} duration: {time.time()-s:.3f}s")
+            log(f"Epoch {epoch+1} duration: {time.time()-s:.3f}s")
             sys.stdout.flush()
 
     test_loss, test_accuracy, test_report, conf_matrix = evaluate_model_ddp(
         model, test_loader, criterion, rank, "test"
     )
     if rank == 0:
-        print("\nFinal evaluation on test set...")
-        print(f"\nTest Results:")
-        print(f"Test Loss: {test_loss:.4f}")
-        print(f"Test Accuracy: {test_accuracy:.2f}%")
-        print("\nClassification Report:")
-        print(test_report)
-        print("\nConfusion Matrix:")
-        with open(f"./outputs/conf_matrix.json", "w") as f:
+        log("\nFinal evaluation on test set...")
+        log(f"\nTest Results:")
+        log(f"Test Loss: {test_loss:.4f}")
+        log(f"Test Accuracy: {test_accuracy:.2f}%")
+        log("\nClassification Report:")
+        log(test_report)
+        log("\nConfusion Matrix:")
+        with open(f"./{output_dir}/{model_name}_conf_matrix.json", "w") as f:
             json.dump(conf_matrix.tolist(), f)
-        print(conf_matrix)
+        log(conf_matrix)
 
         # Save final model
-        final_checkpoint = f"./models/{dataset_name}/final_model.pth"
+        final_checkpoint = f"./{output_dir}/models/{model_name}_final_model.pth"
         save_checkpoint(
             model,
             optimizer,
@@ -232,7 +235,7 @@ def train_model_ddp(
             num_classes,
             unique_templates,
         )
-        print(f"Saved final model to {final_checkpoint}")
+        log(f"Saved final model to {final_checkpoint}")
 
     cleanup_ddp()
 
@@ -254,34 +257,37 @@ if __name__ == "__main__":
 
     args = parser.parse_args()
 
+    # Save output
+    directory = f"./outputs/{VideoCNN.name}_{CURRENT_PERIOD}"
+    log = partial(print_and_log, log_file=f"{directory}/output.log")
+    os.makedirs(directory)
+    os.makedirs(f"{directory}/models")
+    log(f"Directory '{directory}' created.")
+    log(f"Model: {VideoCNN.name}")
+
+    # Inputs
+    epochs = args.epochs or int(input("Epochs: "))
     dataset = args.dataset
     if not dataset:
         data_path = "./data/"
         files = os.listdir(data_path)
         for i, file in enumerate(files):
-            print(f"{i}: {file}")
+            log(f"{i}: {file}")
 
         data_idx = int(input("Select file: "))
         dataset = f"{data_path}{files[data_idx]}"
 
-    # Model save output
-    dataset_name = dataset.split("/")[-1].split(".")[0]
-    directory = f"./models/{dataset_name}"
-    if not os.path.isdir(directory):
-        os.makedirs(directory)
-        print(f"Directory '{directory}' created.")
-
-    epochs = args.epochs or int(input("Epochs: "))
-
+    # Clear cache
     gc.collect()
     torch.cuda.empty_cache()
 
     with open(dataset, "rb") as f:
         X_data, Y_data = pk.load(f)
 
+    # Prepare datasets
     dataset = VideoDataset(X_data, Y_data, custom_processor=train_video_processor)
     num_classes = dataset.num_classes
-    print(f"Nums of classes: {num_classes}")
+    log(f"Nums of classes: {num_classes}")
 
     # Create train, validation, and test datasets
     train_val_indices, test_indices = train_test_split(
@@ -300,18 +306,20 @@ if __name__ == "__main__":
     val_dataset = Subset(dataset, val_indices)
     test_dataset = Subset(dataset, test_indices)
 
-    print(f"Dataset splits:")
-    print(f"\tTraining samples: {len(train_dataset)}")
-    print(f"\tValidation samples: {len(val_dataset)}")
-    print(f"\tTest samples: {len(test_dataset)}")
+    log(f"Dataset splits:")
+    log(f"\tTraining samples: {len(train_dataset)}")
+    log(f"\tValidation samples: {len(val_dataset)}")
+    log(f"\tTest samples: {len(test_dataset)}")
 
+    # Prepare ddp training
     world_size = torch.cuda.device_count()
     mp.set_start_method("spawn", force=True)
     mp.spawn(
         train_model_ddp,
         args=(
             world_size,
-            dataset_name,
+            directory,
+            log,
             train_dataset,
             val_dataset,
             test_dataset,

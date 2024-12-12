@@ -234,3 +234,11 @@ def cleanup_ddp():
     Clean up distributed training
     """
     dist.destroy_process_group()
+
+
+def print_and_log(message, log_file=None):
+    print(message)
+    if not log_file:
+        return
+    with open(log_file, "a") as f:
+        f.write(f"{message}\n")
