@@ -187,7 +187,7 @@ def train_model_ddp(
                 )
                 print(f"Saved checkpoint to {checkpoint_file}")
 
-            print(f"Epoch {epoch} duration: {time.time()-s:.3f}")
+            print(f"Epoch {epoch} duration: {time.time()-s:.3f}s")
             sys.stdout.flush()
 
     test_loss, test_accuracy, test_report, conf_matrix = evaluate_model_ddp(

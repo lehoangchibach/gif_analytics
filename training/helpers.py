@@ -104,17 +104,17 @@ def train_video_processor(video_path: str) -> np.ndarray:
     while len(frames) < 5:
         frames.append(frames[-1])
 
-    seq = va.Sequential(
-        [
-            va.Pepper(),
-            # va.RandomShear(x=0.05, y=0.05),
-            va.RandomTranslate(x=10, y=10),
-            # va.RandomRotate(20),
-            # va.Sometimes(0.5, va.HorizontalFlip()),
-        ]
-    )
+    # seq = va.Sequential(
+    #     [
+    #         va.Pepper(),
+    #         # va.RandomShear(x=0.05, y=0.05),
+    #         va.RandomTranslate(x=10, y=10),
+    #         # va.RandomRotate(20),
+    #         # va.Sometimes(0.5, va.HorizontalFlip()),
+    #     ]
+    # )
 
-    frames = seq(frames)
+    # frames = seq(frames)
     video_data = np.stack(frames)
     return video_data.astype(np.float32)
 
