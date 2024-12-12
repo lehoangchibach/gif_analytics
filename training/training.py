@@ -23,10 +23,8 @@ from helpers import (
     load_checkpoint,
     save_checkpoint,
     setup_ddp,
-    test_video_processor,
     train_video_processor,
 )
-from model import VideoCNN1
 
 
 def train_model_ddp(
@@ -85,7 +83,7 @@ def train_model_ddp(
     )
 
     # Create model and move it to GPU
-    model = VideoCNN1(num_classes=num_classes).to(rank)
+    model = VideoCNN(num_classes=num_classes).to(rank)
     model = DDP(model, device_ids=[rank])
 
     # SUMMARY

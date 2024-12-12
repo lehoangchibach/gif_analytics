@@ -5,8 +5,8 @@ import torch
 from torchsummary import summary
 
 from constants import *
+from constants import VideoCNN
 from dataset import VideoDataset
-from model import VideoCNN
 
 
 def print_model_summary(num_classes):

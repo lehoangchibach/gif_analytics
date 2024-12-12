@@ -22,7 +22,6 @@ from helpers import (
     setup_ddp,
     test_video_processor,
 )
-from model import VideoCNN
 
 
 def evaluate_model(

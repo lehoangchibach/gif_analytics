@@ -3,9 +3,9 @@ import pickle as pk
 
 import torch
 
+from constants import VideoCNN
 from dataset import VideoDataset
 from helpers import test_video_processor
-from model import VideoCNN
 
 
 def predict_example(model_path, dataset_path: str, example_path: str):
