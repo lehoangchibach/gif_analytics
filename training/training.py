@@ -26,7 +26,7 @@ from helpers import (
     test_video_processor,
     train_video_processor,
 )
-from model import VideoCNN
+from model import VideoCNN1
 
 
 def train_model_ddp(
@@ -37,11 +37,13 @@ def train_model_ddp(
     val_dataset,
     test_dataset: VideoDataset,
     num_classes: int,
+    unique_templates: list,
     num_epochs=1,
     is_summary=False,
     checkpoint_path=None,
     checkpoint_frequency=10,
 ):
+    train_losses, train_accs, val_losses, val_accs = [], [], [], []
     best_val_accuracy = -1
 
     # Setup DDP
@@ -83,7 +85,7 @@ def train_model_ddp(
     )
 
     # Create model and move it to GPU
-    model = VideoCNN(num_classes=num_classes).to(rank)
+    model = VideoCNN1(num_classes=num_classes).to(rank)
     model = DDP(model, device_ids=[rank])
 
     # SUMMARY
@@ -166,8 +168,8 @@ def train_model_ddp(
                     val_accuracy,
                     best_val_accuracy,
                     best_model_file,
-                    test_dataset.num_classes,
-                    test_dataset.unique_templates,
+                    num_classes,
+                    unique_templates,
                 )
                 print(f"Saved best model to {best_model_file}")
 
@@ -182,11 +184,26 @@ def train_model_ddp(
                     val_accuracy,
                     best_val_accuracy,
                     checkpoint_file,
-                    test_dataset.num_classes,
-                    test_dataset.unique_templates,
+                    num_classes,
+                    unique_templates,
                 )
                 print(f"Saved checkpoint to {checkpoint_file}")
 
+                stats = {
+                    "train_losses": train_losses,
+                    "train_accs": train_accs,
+                    "val_losses": val_losses,
+                    "val_accs": val_accs,
+                }
+                with open(
+                    f"./outputs/logs/stats_{dataset_name}_epoch_{epoch}.json", "w"
+                ) as f:
+                    json.dump(stats, f)
+
+            train_losses.append(train_loss)
+            train_accs.append(train_accuracy)
+            val_losses.append(val_loss)
+            val_accs.append(val_accuracy)
             print(f"Epoch {epoch} duration: {time.time()-s:.3f}s")
             sys.stdout.flush()
 
@@ -214,8 +231,8 @@ def train_model_ddp(
             val_accuracy,
             best_val_accuracy,
             final_checkpoint,
-            test_dataset.num_classes,
-            test_dataset.unique_templates,
+            num_classes,
+            unique_templates,
         )
         print(f"Saved final model to {final_checkpoint}")
 
@@ -283,9 +300,7 @@ if __name__ == "__main__":
     # Initialize train, val, test dataset
     train_dataset = Subset(dataset, train_indices)
     val_dataset = Subset(dataset, val_indices)
-    test_dataset = VideoDataset(
-        test_X_data, test_Y_data, custom_processor=test_video_processor
-    )
+    test_dataset = Subset(dataset, test_indices)
 
     print(f"Dataset splits:")
     print(f"\tTraining samples: {len(train_dataset)}")
@@ -303,6 +318,7 @@ if __name__ == "__main__":
             val_dataset,
             test_dataset,
             num_classes,
+            dataset.unique_templates,
             epochs,
             args.summary,
             args.checkpoint,
