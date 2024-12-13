@@ -163,7 +163,7 @@ def train_model_ddp(
             # Save best model
             if val_accuracy > best_val_accuracy:
                 best_val_accuracy = val_accuracy
-                best_model_file = f"./{output_dir}/models/{model_name}_best_model_acc_{int(best_val_accuracy)}.pth"
+                best_model_file = f"{output_dir}/models/{model_name}_best_model_acc_{int(best_val_accuracy)}.pth"
                 save_checkpoint(
                     model,
                     optimizer,
@@ -178,7 +178,7 @@ def train_model_ddp(
 
             if (epoch + 1) % checkpoint_frequency == 0:
                 checkpoint_file = (
-                    f"./{output_dir}/models/{model_name}checkpoint_epoch_{epoch+1}.pth"
+                    f"{output_dir}/models/{model_name}_checkpoint_epoch_{epoch+1}.pth"
                 )
                 save_checkpoint(
                     model,
@@ -198,7 +198,7 @@ def train_model_ddp(
                     "val_losses": val_losses,
                     "val_accs": val_accs,
                 }
-                with open(f"./{output_dir}/{model_name}_traing_hist.json", "w") as f:
+                with open(f"{output_dir}/{model_name}_traing_hist.json", "w") as f:
                     json.dump(stats, f)
 
             train_losses.append(train_loss)
@@ -224,7 +224,7 @@ def train_model_ddp(
         log(conf_matrix)
 
         # Save final model
-        final_checkpoint = f"./{output_dir}/models/{model_name}_final_model.pth"
+        final_checkpoint = f"{output_dir}/models/{model_name}_final_model.pth"
         save_checkpoint(
             model,
             optimizer,
