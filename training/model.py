@@ -159,4 +159,4 @@ class VideoCNN2(nn.Module):
         return x
 
 
-VideoCNN = VideoCNN2
+VideoCNN = VideoCNN1
