@@ -1,35 +1,28 @@
 import argparse
-import pickle as pk
 
 import torch
 
-from constants import VideoCNN
-from dataset import VideoDataset
-from helpers import test_video_processor
+from helpers import train_video_processor
+from model import VideoCNN
 
 
-def predict_example(model_path, dataset_path: str, example_path: str):
+def predict_example(model_path, example_path: str):
     """
     Load a pre-trained model and predict the class for a given example
     """
-    # Load the dataset to get number of classes
-    with open(dataset_path, "rb") as f:
-        X_data, Y_data = pk.load(f)
-
-    # Create dataset to determine number of classes
-    video_dataset = VideoDataset(X_data, Y_data, custom_processor=test_video_processor)
-    num_classes = video_dataset.num_classes
-
-    # Create model
-    model = VideoCNN(num_classes=num_classes)
-
     # Load checkpoint
     checkpoint = torch.load(model_path, map_location="cpu")
+
+    # Create model
+    num_classes = checkpoint["num_classes"]
+    model = VideoCNN(num_classes=num_classes)
+
+    # Load model
     model.load_state_dict(checkpoint["model_state_dict"])
     model.eval()
 
     # Add batch dimension
-    example_video = torch.from_numpy(test_video_processor(example_path)).unsqueeze(0)
+    example_video = torch.from_numpy(train_video_processor(example_path)).unsqueeze(0)
 
     # Predict
     with torch.no_grad():
@@ -40,7 +33,7 @@ def predict_example(model_path, dataset_path: str, example_path: str):
     # Print results
     print(f"Model Path: {model_path}")
     print(f"Example Path: {example_path}")
-    template_id = video_dataset.get_original_template_id(predicted_class)
+    template_id = checkpoint["unique_templates"][predicted_class]
     print(f"Predicted Label: {template_id}")
 
     return template_id
@@ -49,12 +42,11 @@ def predict_example(model_path, dataset_path: str, example_path: str):
 def main():
     parser = argparse.ArgumentParser(description="Model Prediction Script")
     parser.add_argument("model", type=str, help="Path to model checkpoint")
-    parser.add_argument("dataset", type=str, help="Path to original dataset")
     parser.add_argument("example", type=str, help="Path to predicting video")
 
     args = parser.parse_args()
 
-    predict_example(args.model, args.dataset, args.example)
+    predict_example(args.model, args.example)
 
 
 if __name__ == "__main__":
