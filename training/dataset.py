@@ -19,6 +19,9 @@ class VideoDataset(Dataset):
         video_paths: List[str],
         template_ids: List[int],
         custom_processor: callable,
+        unique_templates: ndarray[int],
+        num_classes: int,
+        template_to_idx: dict,
         repetitions: int = 1,
     ):
         self.video_paths = video_paths
@@ -27,13 +30,11 @@ class VideoDataset(Dataset):
         self.custom_processor = custom_processor
 
         # Store unique template IDs for reference
-        self.unique_templates = torch.unique(self.template_ids)
-        self.num_classes = len(self.unique_templates)
+        self.unique_templates = unique_templates
+        self.num_classes = num_classes
 
         # Create mapping from template ID to class index (0 to num_classes-1)
-        self.template_to_idx = {
-            int(tid): idx for idx, tid in enumerate(self.unique_templates)
-        }
+        self.template_to_idx = template_to_idx
 
         self.repetitions = repetitions
 

@@ -7,8 +7,10 @@ import torch.distributed as dist
 import vidaug.augmentors as va  # noqa
 from sklearn.metrics import classification_report, confusion_matrix
 from torch.nn.parallel import DistributedDataParallel as DDP
+from torch.utils.data import Dataset, Subset
 
 from constants import *
+from dataset import VideoDataset
 
 
 def evaluate_model_ddp(model, dataloader, criterion, device, phase="val"):
@@ -25,8 +27,10 @@ def evaluate_model_ddp(model, dataloader, criterion, device, phase="val"):
 
     with torch.no_grad():
         for videos, labels in dataloader:
-            videos = videos.cuda(device, non_blocking=True)
-            labels = labels.cuda(device, non_blocking=True)
+            # videos = videos.cuda(device, non_blocking=True)
+            # labels = labels.cuda(device, non_blocking=True)
+            videos = videos.to(device)
+            labels = labels.to(device)
 
             outputs = model(videos)
             loss = criterion(outputs, labels)
@@ -40,8 +44,8 @@ def evaluate_model_ddp(model, dataloader, criterion, device, phase="val"):
                 predictions.extend(predicted.cpu().numpy())
                 true_labels.extend(labels.cpu().numpy())
 
-            del videos, labels, outputs
-            torch.cuda.empty_cache()
+            # del videos, labels, outputs
+            # torch.cuda.empty_cache()
 
     # Synchronize metrics across all GPUs
     dist.all_reduce(total_loss, op=dist.ReduceOp.SUM)
@@ -94,8 +98,6 @@ def train_video_processor(video_path: str) -> np.ndarray:
         if ret:
             # Convert BGR to RGB
             frame_rgb = cv2.cvtColor(frame, cv2.COLOR_BGR2RGB)
-            frame_rgb = cv2.resize(frame_rgb, IMAGE_SIZE)
-
             frames.append(frame_rgb)
 
     # Release video capture object
@@ -104,19 +106,22 @@ def train_video_processor(video_path: str) -> np.ndarray:
     while len(frames) < 5:
         frames.append(frames[-1])
 
-    # seq = va.Sequential(
-    #     [
-    #         va.Pepper(),
-    #         # va.RandomShear(x=0.05, y=0.05),
-    #         va.RandomTranslate(x=10, y=10),
-    #         # va.RandomRotate(20),
-    #         # va.Sometimes(0.5, va.HorizontalFlip()),
-    #     ]
-    # )
+    seq = va.Sequential(
+        [
+            va.Pepper(),
+            va.RandomShear(x=0.2, y=0.2),
+            va.RandomTranslate(x=10, y=10),
+            va.RandomRotate(20),
+            va.Sometimes(0.5, va.HorizontalFlip()),
+        ]
+    )
 
-    # frames = seq(frames)
-    video_data = np.stack(frames)
-    return video_data.astype(np.float32)
+    frames = seq(frames)
+
+    res = []
+    for frame in frames:
+        res.append(cv2.resize(frame, IMAGE_SIZE))
+    return np.array(res).astype(np.float32)
 
 
 def test_video_processor(video_path: str) -> np.ndarray:
@@ -153,7 +158,7 @@ def test_video_processor(video_path: str) -> np.ndarray:
     while len(frames) < 5:
         frames.append(frames[-1])
 
-    video_data = np.stack(frames)
+    video_data = np.stack(frames) / 255
     return video_data.astype(np.float32)
 
 
@@ -242,3 +247,94 @@ def print_and_log(message, log_file=None):
         return
     with open(log_file, "a") as f:
         f.write(f"{message}\n")
+
+
+def create_train_val_test_splits(
+    video_paths: list[str],
+    template_ids: list[int],
+    train_processor: callable,
+    val_processor: callable,
+    test_processor: callable,
+    unique_templates: np.ndarray[int],
+    num_classes: int,
+    template_to_idx: dict,
+    train_ratio: float = 0.6,
+    val_ratio: float = 0.2,
+    test_ratio: float = 0.2,
+    seed: int = 42,
+    repetitions: int = 1,
+) -> tuple[Dataset, Dataset, Dataset]:
+    """
+    Create train, validation and test splits of the VideoDataset with different processors.
+
+    Args:
+        video_paths: List of paths to video files
+        template_ids: List of template IDs corresponding to each video
+        train_processor: Processor function for training data
+        val_processor: Processor function for validation data
+        test_processor: Processor function for test data
+        train_ratio: Proportion of data for training
+        val_ratio: Proportion of data for validation
+        test_ratio: Proportion of data for testing
+        seed: Random seed for reproducibility
+        repetitions: Number of times to repeat each sample
+
+    Returns:
+        Tuple of (train_dataset, val_dataset, test_dataset)
+    """
+    assert (
+        abs(train_ratio + val_ratio + test_ratio - 1.0) < 1e-5
+    ), "Ratios must sum to 1"
+
+    # Create full datasets with different processors
+    train_dataset = VideoDataset(
+        video_paths,
+        template_ids,
+        train_processor,
+        unique_templates,
+        num_classes,
+        template_to_idx,
+        repetitions,
+    )
+    val_dataset = VideoDataset(
+        video_paths,
+        template_ids,
+        val_processor,
+        unique_templates,
+        num_classes,
+        template_to_idx,
+        repetitions,
+    )
+    test_dataset = VideoDataset(
+        video_paths,
+        template_ids,
+        test_processor,
+        unique_templates,
+        num_classes,
+        template_to_idx,
+        repetitions,
+    )
+
+    # Generate indices for splitting
+    dataset_size = len(video_paths)
+    indices = np.arange(dataset_size)
+
+    # Shuffle indices
+    np.random.seed(seed)
+    np.random.shuffle(indices)
+
+    # Calculate split sizes
+    train_size = int(train_ratio * dataset_size)
+    val_size = int(val_ratio * dataset_size)
+
+    # Split indices
+    train_indices = indices[:train_size]
+    val_indices = indices[train_size : train_size + val_size]
+    test_indices = indices[train_size + val_size :]
+
+    # Create subsets
+    train_subset = Subset(train_dataset, train_indices)
+    val_subset = Subset(val_dataset, val_indices)
+    test_subset = Subset(test_dataset, test_indices)
+
+    return train_subset, val_subset, test_subset

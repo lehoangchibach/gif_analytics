@@ -38,7 +38,7 @@ def pull_gif(url, filename) -> bool:
             return False
 
         extension = url.split(".")[-1]
-        with open(f"gifs/{filename}.{extension}", "wb") as f:
+        with open(f"/d/gifs/{filename}.{extension}", "wb") as f:
             f.write(response.content)
 
         return True

@@ -5,22 +5,23 @@ import os
 import pickle as pk
 import sys
 
+import numpy as np
 import torch
 import torch.multiprocessing as mp
 import torch.nn as nn
-from sklearn.model_selection import train_test_split
 from torch.nn.parallel import DistributedDataParallel as DDP
-from torch.utils.data import DataLoader, Subset
+from torch.utils.data import DataLoader
 from torch.utils.data.distributed import DistributedSampler
 
 from constants import *
-from dataset import VideoDataset
 from helpers import (
     cleanup_ddp,
+    create_train_val_test_splits,
     evaluate_model_ddp,
     load_checkpoint,
     setup_ddp,
     test_video_processor,
+    train_video_processor,
 )
 from model import VideoCNN
 
@@ -45,7 +46,7 @@ def evaluate_model(
     test_loader = DataLoader(
         test_dataset,
         batch_size=BATCH_SIZE,
-        num_workers=2,
+        num_workers=15,
         persistent_workers=True,
         sampler=test_sampler,
     )
@@ -129,16 +130,25 @@ if __name__ == "__main__":
         X_data, Y_data = pk.load(f)
 
     dataset_name = dataset.split("/")[-1].split(".")[0]
-    video_dataset = VideoDataset(X_data, Y_data, custom_processor=test_video_processor)
-    num_classes = video_dataset.num_classes
-    print(f"Number of classes: {num_classes}")
+    unique_templates = np.unique(Y_data)
+    num_classes = len(unique_templates)
+    template_to_idx: dict = {int(tid): idx for idx, tid in enumerate(unique_templates)}
 
-    # Create train, validation, and test datasets
-    train_val_indices, test_indices = train_test_split(
-        list(range(len(video_dataset))), test_size=0.2, random_state=42
+    _, _, test_dataset = create_train_val_test_splits(
+        X_data,
+        Y_data,
+        train_processor=train_video_processor,
+        val_processor=test_video_processor,
+        test_processor=test_video_processor,
+        unique_templates=unique_templates,
+        num_classes=num_classes,
+        template_to_idx=template_to_idx,
+        train_ratio=0.6,
+        val_ratio=0.2,
+        test_ratio=0.2,
+        seed=42,
+        repetitions=1,
     )
-
-    test_dataset = Subset(video_dataset, test_indices)
 
     print(f"Test dataset size: {len(test_dataset)} samples")
 

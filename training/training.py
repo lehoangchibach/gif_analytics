@@ -7,12 +7,12 @@ import sys
 import time
 from functools import partial
 
+import numpy as np
 import torch
 import torch.multiprocessing as mp
 import torch.nn as nn
-from sklearn.model_selection import train_test_split
 from torch.nn.parallel import DistributedDataParallel as DDP
-from torch.utils.data import DataLoader, Subset
+from torch.utils.data import DataLoader
 from torch.utils.data.distributed import DistributedSampler
 from torchsummary import summary
 
@@ -20,11 +20,13 @@ from constants import *
 from dataset import VideoDataset
 from helpers import (
     cleanup_ddp,
+    create_train_val_test_splits,
     evaluate_model_ddp,
     load_checkpoint,
     print_and_log,
     save_checkpoint,
     setup_ddp,
+    test_video_processor,
     train_video_processor,
 )
 from model import VideoCNN
@@ -284,27 +286,25 @@ if __name__ == "__main__":
     with open(dataset, "rb") as f:
         X_data, Y_data = pk.load(f)
 
-    # Prepare datasets
-    dataset = VideoDataset(X_data, Y_data, custom_processor=train_video_processor)
-    num_classes = dataset.num_classes
-    log(f"Nums of classes: {num_classes}")
+    unique_templates = np.unique(Y_data)
+    num_classes = len(unique_templates)
+    template_to_idx: dict = {int(tid): idx for idx, tid in enumerate(unique_templates)}
 
-    # Create train, validation, and test datasets
-    train_val_indices, test_indices = train_test_split(
-        list(range(len(dataset))), test_size=0.2, random_state=42
+    train_dataset, val_dataset, test_dataset = create_train_val_test_splits(
+        X_data,
+        Y_data,
+        train_processor=train_video_processor,
+        val_processor=test_video_processor,
+        test_processor=test_video_processor,
+        unique_templates=unique_templates,
+        num_classes=num_classes,
+        template_to_idx=template_to_idx,
+        train_ratio=0.6,
+        val_ratio=0.2,
+        test_ratio=0.2,
+        seed=42,
+        repetitions=1,
     )
-    train_indices, val_indices = train_test_split(
-        train_val_indices, test_size=0.25, random_state=42
-    )
-
-    # Get test data
-    test_X_data = [X_data[i] for i in test_indices]
-    test_Y_data = [Y_data[i] for i in test_indices]
-
-    # Initialize train, val, test dataset
-    train_dataset = Subset(dataset, train_indices)
-    val_dataset = Subset(dataset, val_indices)
-    test_dataset = Subset(dataset, test_indices)
 
     log(f"Dataset splits:")
     log(f"\tTraining samples: {len(train_dataset)}")
@@ -324,7 +324,7 @@ if __name__ == "__main__":
             val_dataset,
             test_dataset,
             num_classes,
-            dataset.unique_templates,
+            unique_templates,
             epochs,
             args.summary,
             args.checkpoint,
