@@ -1,15 +1,13 @@
 import argparse
-import pickle as pk
 
 import torch
 from torchsummary import summary
 
 from constants import *
-from constants import VideoCNN
-from dataset import VideoDataset
+from model import VideoCNN
 
 
-def print_model_summary(num_classes):
+def print_model_summary(model_path):
     """
     Load a saved PyTorch model and print its summary.
 
@@ -21,6 +19,8 @@ def print_model_summary(num_classes):
     device = torch.device("cpu")
 
     # Recreate the model architecture
+    checkpoint = torch.load(model_path, map_location="cpu")
+    num_classes = checkpoint["num_classes"]
     model = VideoCNN(num_classes=num_classes).to(device)
 
     # Print model summary
@@ -41,16 +41,10 @@ def print_model_summary(num_classes):
 
 def main():
     parser = argparse.ArgumentParser(description="Print PyTorch Model Summary")
-    parser.add_argument("dataset", type=str, help="Path to the dataset")
+    parser.add_argument("model_path", type=str, help="Path to the model")
     args = parser.parse_args()
 
-    with open(args.dataset, "rb") as f:
-        X_data, Y_data = pk.load(f)
-    dataset = VideoDataset(X_data, Y_data, custom_processor=None)
-    num_classes = dataset.num_classes
-    print(f"Nums of classes: {num_classes}")
-
-    print_model_summary(num_classes)
+    print_model_summary(args.model_path)
 
 
 if __name__ == "__main__":
