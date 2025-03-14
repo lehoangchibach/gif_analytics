@@ -17,3 +17,4 @@ templates/comparing.json
 templates/script_output.log
 notebooks/output.log
 templates/*.json
+hmdb51_org/
