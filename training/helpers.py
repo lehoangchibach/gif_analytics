@@ -1,4 +1,5 @@
 import os
+import random
 
 import cv2
 import numpy as np
@@ -85,9 +86,9 @@ def train_video_processor(video_path: str) -> np.ndarray:
         raise ValueError("Could not read frames from video file")
 
     # Calculate frame indices to extract
-    frame_indices = [
-        i * (total_frames - 1) // (NUM_FRAMES - 1) for i in range(NUM_FRAMES)
-    ]
+    frame_indices = sorted(
+        random.sample(range(total_frames), min(total_frames, NUM_FRAMES))
+    )
 
     for frame_idx in frame_indices:
         # Set frame position
@@ -103,7 +104,7 @@ def train_video_processor(video_path: str) -> np.ndarray:
     # Release video capture object
     cap.release()
 
-    while len(frames) < 5:
+    while len(frames) < NUM_FRAMES:
         frames.append(frames[-1])
 
     seq = va.Sequential(
@@ -135,9 +136,12 @@ def test_video_processor(video_path: str) -> np.ndarray:
         raise ValueError("Could not read frames from video file")
 
     # Calculate frame indices to extract
-    frame_indices = [
-        i * (total_frames - 1) // (NUM_FRAMES - 1) for i in range(NUM_FRAMES)
-    ]
+    # frame_indices = [
+    #     i * (total_frames - 1) // (NUM_FRAMES - 1) for i in range(NUM_FRAMES)
+    # ]
+    frame_indices = sorted(
+        random.sample(range(total_frames), min(total_frames, NUM_FRAMES))
+    )
 
     for frame_idx in frame_indices:
         # Set frame position
@@ -155,7 +159,7 @@ def test_video_processor(video_path: str) -> np.ndarray:
     # Release video capture object
     cap.release()
 
-    while len(frames) < 5:
+    while len(frames) < NUM_FRAMES:
         frames.append(frames[-1])
 
     video_data = np.stack(frames) / 255
