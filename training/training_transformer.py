@@ -11,11 +11,6 @@ import numpy as np
 import torch
 import torch.multiprocessing as mp
 import torch.nn as nn
-from torch.nn.parallel import DistributedDataParallel as DDP
-from torch.utils.data import DataLoader
-from torch.utils.data.distributed import DistributedSampler
-from torchsummary import summary
-
 from constants import *
 from dataset import VideoDataset
 from helpers import (
@@ -30,6 +25,10 @@ from helpers import (
     train_video_processor,
 )
 from model import VideoCNN
+from torch.nn.parallel import DistributedDataParallel as DDP
+from torch.utils.data import DataLoader
+from torch.utils.data.distributed import DistributedSampler
+from torchsummary import summary
 
 
 def train_model_ddp(

@@ -6,12 +6,11 @@ import numpy as np
 import torch
 import torch.distributed as dist
 import vidaug.augmentors as va  # noqa
+from constants import *
+from dataset import VideoDataset
 from sklearn.metrics import classification_report, confusion_matrix
 from torch.nn.parallel import DistributedDataParallel as DDP
 from torch.utils.data import Dataset, Subset
-
-from constants import *
-from dataset import VideoDataset
 
 
 def evaluate_model_ddp(model, dataloader, criterion, device, phase="val"):
@@ -202,7 +201,7 @@ def load_checkpoint(rank, model, optimizer, filename):
     Load checkpoint and return necessary training state information
     """
     # Load checkpoint on CPU first to avoid GPU RAM spike
-    checkpoint = torch.load(filename, map_location="cpu")
+    checkpoint = torch.load(filename, map_location="cpu", weights_only=False)
 
     if isinstance(model, DDP):
         model.module.load_state_dict(checkpoint["model_state_dict"])

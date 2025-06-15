@@ -1,10 +1,9 @@
 import argparse
 
 import torch
-from torchsummary import summary
-
 from constants import *
 from model import VideoCNN
+from torchsummary import summary
 
 
 def print_model_summary(model_path):

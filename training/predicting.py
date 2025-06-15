@@ -1,7 +1,6 @@
 import argparse
 
 import torch
-
 from helpers import train_video_processor
 from model import VideoCNN
 

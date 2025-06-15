@@ -3,7 +3,7 @@ import json
 from thefuzz import fuzz
 from tqdm import tqdm
 
-with open("./metadata_w_examples.json", "r") as f:
+with open("./outputs/metadata_w_examples.json", "r") as f:
     metadata = json.load(f)
 
 titles = []
@@ -27,7 +27,7 @@ for i in tqdm(range(len(metadata))):
 
     titles.append((i, title))
 
-with open("comparing.json", "w") as f:
+with open("./outputs/comparing.json", "w") as f:
     json.dump(res, f)
 
 print(len(res), res[0])

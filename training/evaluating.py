@@ -9,10 +9,6 @@ import numpy as np
 import torch
 import torch.multiprocessing as mp
 import torch.nn as nn
-from torch.nn.parallel import DistributedDataParallel as DDP
-from torch.utils.data import DataLoader
-from torch.utils.data.distributed import DistributedSampler
-
 from constants import *
 from helpers import (
     cleanup_ddp,
@@ -24,6 +20,9 @@ from helpers import (
     train_video_processor,
 )
 from model import VideoCNN
+from torch.nn.parallel import DistributedDataParallel as DDP
+from torch.utils.data import DataLoader
+from torch.utils.data.distributed import DistributedSampler
 
 
 def evaluate_model(
